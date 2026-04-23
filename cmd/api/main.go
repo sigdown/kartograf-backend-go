@@ -6,13 +6,18 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/joho/godotenv"
 
 	apphttp "github.com/sigdown/kartograf-backend-go/internal/http"
 
+	apiauth "github.com/sigdown/kartograf-backend-go/internal/auth"
 	"github.com/sigdown/kartograf-backend-go/internal/config"
 	"github.com/sigdown/kartograf-backend-go/internal/db"
+	"github.com/sigdown/kartograf-backend-go/internal/repository"
+	"github.com/sigdown/kartograf-backend-go/internal/storage"
+	"github.com/sigdown/kartograf-backend-go/internal/usecase"
 )
 
 func main() {
@@ -29,7 +34,33 @@ func main() {
 
 	logger.Info("postgres connected")
 
-	router := apphttp.NewRouter()
+	s3Storage, err := storage.NewS3Storage(
+		cfg.S3.Endpoint,
+		cfg.S3.Region,
+		cfg.S3.AccessKey,
+		cfg.S3.SecretKey,
+		cfg.S3.UsePathStyle,
+	)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := s3Storage.EnsureBucket(context.Background(), cfg.S3.Bucket); err != nil {
+		log.Fatal(err)
+	}
+
+	userRepo := repository.NewPostgresUserRepository(pool)
+	pointRepo := repository.NewPostgresPointRepository(pool)
+	mapRepo := repository.NewPostgresMapRepository(pool)
+
+	tokenManager := apiauth.NewTokenManager(cfg.Auth.JWTSecret, cfg.Auth.AccessTokenTTL)
+
+	router := apphttp.NewRouter(apphttp.Services{
+		Auth:   usecase.NewAuthService(userRepo, tokenManager),
+		Points: usecase.NewPointService(pointRepo),
+		Maps:   usecase.NewMapService(mapRepo, s3Storage, cfg.S3.Bucket, 15*time.Minute),
+		Tokens: tokenManager,
+	})
 
 	addr := cfg.App.Host + ":" + cfg.App.Port
 	logger.Info("http server starting", "addr", addr)
