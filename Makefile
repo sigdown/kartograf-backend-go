@@ -9,6 +9,9 @@ tidy:
 build:
 	go build ./...
 
+test:
+	go test ./...
+
 migrate-up:
 	migrate -path migrations -database "$(POSTGRES_DSN)" up
 
