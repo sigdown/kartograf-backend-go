@@ -1,0 +1,15 @@
+.git
+.gitignore
+.idea
+.vscode
+bin
+tmp
+coverage.out
+docker-compose.yml
+docker-compose.prod.yml
+README.md
+*.log
+.env
+kartograf_tz.pdf
+Makefile
+README.md
