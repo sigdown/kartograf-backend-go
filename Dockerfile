@@ -3,6 +3,7 @@ FROM golang:1.25 AS builder
 WORKDIR /app
 
 COPY go.sum go.mod ./
+RUN go mod download
 
 COPY . .
 
@@ -13,7 +14,13 @@ FROM alpine:3.20
 
 WORKDIR /app
 
-RUN apk add --no-cache ca-certificates tzdata
+RUN apk add --no-cache ca-certificates tzdata curl
+
+ARG MIGRATE_VERSION=v4.19.0
+RUN curl -L "https://github.com/golang-migrate/migrate/releases/download/${MIGRATE_VERSION}/migrate.linux-amd64.tar.gz" \
+    | tar -xz && \
+    mv migrate /usr/local/bin/migrate && \
+    chmod +x /usr/local/bin/migrate
 
 COPY --from=builder /app/bin/kartograf-api /app/kartograf-api
 COPY --from=builder /app/migrations /app/migrations
