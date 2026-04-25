@@ -117,3 +117,4 @@ make db-down
 ## Документация
 
 - контракт API: [docs/api.md](docs/api.md)
+- подготовка архива карт: [docs/geo.md](docs/geo.md)
