@@ -26,7 +26,7 @@ func NewS3Storage(endpoint, region, accessKey, secretKey string, usePathStyle bo
 		Creds:        credentials.NewStaticV4(accessKey, secretKey, ""),
 		Secure:       u.Scheme == "https",
 		Region:       region,
-		BucketLookup: bucketLookup(usePathStyle),
+		BucketLookup: bucketLookup(u.Hostname(), usePathStyle),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("create s3 client: %w", err)
@@ -88,7 +88,10 @@ func (s *S3Storage) StatObject(ctx context.Context, bucket, objectKey string) (u
 	}, nil
 }
 
-func bucketLookup(usePathStyle bool) minio.BucketLookupType {
+func bucketLookup(host string, usePathStyle bool) minio.BucketLookupType {
+	if host == "s3.firstvds.ru" {
+		return minio.BucketLookupDNS
+	}
 	if usePathStyle {
 		return minio.BucketLookupPath
 	}
