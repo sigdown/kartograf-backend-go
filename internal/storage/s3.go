@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/url"
 	"time"
 
@@ -54,26 +53,24 @@ func (s *S3Storage) EnsureBucket(ctx context.Context, bucket string) error {
 	return nil
 }
 
-func (s *S3Storage) Upload(ctx context.Context, bucket, objectKey string, body io.Reader, size int64, contentType string) error {
-	if contentType == "" {
-		contentType = "application/octet-stream"
-	}
-
-	_, err := s.client.PutObject(ctx, bucket, objectKey, body, size, minio.PutObjectOptions{
-		ContentType: contentType,
-	})
-	if err != nil {
-		return fmt.Errorf("upload object: %w", err)
-	}
-
-	return nil
-}
-
 func (s *S3Storage) Delete(ctx context.Context, bucket, objectKey string) error {
 	if err := s.client.RemoveObject(ctx, bucket, objectKey, minio.RemoveObjectOptions{}); err != nil {
 		return fmt.Errorf("delete object: %w", err)
 	}
 	return nil
+}
+
+func (s *S3Storage) PresignUpload(ctx context.Context, bucket, objectKey string, expiry time.Duration, contentType string) (string, error) {
+	reqParams := make(url.Values)
+	if contentType != "" {
+		reqParams.Set("Content-Type", contentType)
+	}
+
+	u, err := s.client.PresignHeader(ctx, "PUT", bucket, objectKey, expiry, reqParams, nil)
+	if err != nil {
+		return "", fmt.Errorf("presign upload: %w", err)
+	}
+	return u.String(), nil
 }
 
 func (s *S3Storage) PresignDownload(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error) {
@@ -82,6 +79,18 @@ func (s *S3Storage) PresignDownload(ctx context.Context, bucket, objectKey strin
 		return "", fmt.Errorf("presign download: %w", err)
 	}
 	return u.String(), nil
+}
+
+func (s *S3Storage) StatObject(ctx context.Context, bucket, objectKey string) (usecase.StoredObjectInfo, error) {
+	info, err := s.client.StatObject(ctx, bucket, objectKey, minio.StatObjectOptions{})
+	if err != nil {
+		return usecase.StoredObjectInfo{}, fmt.Errorf("stat object: %w", err)
+	}
+
+	return usecase.StoredObjectInfo{
+		Size: info.Size,
+		ETag: info.ETag,
+	}, nil
 }
 
 func bucketLookup(usePathStyle bool) minio.BucketLookupType {

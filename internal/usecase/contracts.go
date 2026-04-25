@@ -2,7 +2,6 @@ package usecase
 
 import (
 	"context"
-	"io"
 	"time"
 
 	"github.com/sigdown/kartograf-backend-go/internal/domain"
@@ -37,7 +36,13 @@ type MapRepository interface {
 
 type ObjectStorage interface {
 	EnsureBucket(ctx context.Context, bucket string) error
-	Upload(ctx context.Context, bucket, objectKey string, body io.Reader, size int64, contentType string) error
 	Delete(ctx context.Context, bucket, objectKey string) error
+	PresignUpload(ctx context.Context, bucket, objectKey string, expiry time.Duration, contentType string) (string, error)
 	PresignDownload(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error)
+	StatObject(ctx context.Context, bucket, objectKey string) (StoredObjectInfo, error)
+}
+
+type StoredObjectInfo struct {
+	Size int64
+	ETag string
 }

@@ -1,7 +1,6 @@
 package http
 
 import (
-	"io"
 	"net/http"
 	"strconv"
 
@@ -224,8 +223,8 @@ func (h *handler) createMap(c *gin.Context) {
 		return
 	}
 
-	input, err := parseCreateMapRequest(c)
-	if err != nil {
+	var input usecase.CreateMapInput
+	if err := c.ShouldBindJSON(&input); err != nil {
 		writeError(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -237,6 +236,22 @@ func (h *handler) createMap(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, m)
+}
+
+func (h *handler) createMapUploadURL(c *gin.Context) {
+	var input usecase.CreateMapUploadInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	result, err := h.maps.StartCreateUpload(c.Request.Context(), input)
+	if err != nil {
+		writeError(c, statusFromError(err), err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *handler) updateMapMetadata(c *gin.Context) {
@@ -261,6 +276,28 @@ func (h *handler) updateMapMetadata(c *gin.Context) {
 	c.JSON(http.StatusOK, m)
 }
 
+func (h *handler) replaceMapArchiveUploadURL(c *gin.Context) {
+	mapID, err := parseUUIDParam(c.Param("id"))
+	if err != nil {
+		writeError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	var input usecase.ReplaceMapArchiveUploadInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeError(c, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	result, err := h.maps.StartReplaceArchiveUpload(c.Request.Context(), mapID, input)
+	if err != nil {
+		writeError(c, statusFromError(err), err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, result)
+}
+
 func (h *handler) replaceMapArchive(c *gin.Context) {
 	claims, ok := CurrentClaims(c)
 	if !ok {
@@ -274,8 +311,8 @@ func (h *handler) replaceMapArchive(c *gin.Context) {
 		return
 	}
 
-	input, err := parseReplaceArchiveRequest(c)
-	if err != nil {
+	var input usecase.ReplaceMapArchiveInput
+	if err := c.ShouldBindJSON(&input); err != nil {
 		writeError(c, http.StatusBadRequest, err.Error())
 		return
 	}
@@ -302,63 +339,6 @@ func (h *handler) deleteMap(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
-}
-
-func parseCreateMapRequest(c *gin.Context) (usecase.CreateMapInput, error) {
-	year, err := parseOptionalInt(c.PostForm("year"))
-	if err != nil {
-		return usecase.CreateMapInput{}, err
-	}
-
-	fileHeader, err := c.FormFile("archive")
-	if err != nil {
-		return usecase.CreateMapInput{}, err
-	}
-
-	file, err := fileHeader.Open()
-	if err != nil {
-		return usecase.CreateMapInput{}, err
-	}
-	defer file.Close()
-
-	data, err := io.ReadAll(file)
-	if err != nil {
-		return usecase.CreateMapInput{}, err
-	}
-
-	return usecase.CreateMapInput{
-		Slug:            c.PostForm("slug"),
-		Title:           c.PostForm("title"),
-		Description:     c.PostForm("description"),
-		Year:            year,
-		ArchiveName:     fileHeader.Filename,
-		ArchiveMimeType: fileHeader.Header.Get("Content-Type"),
-		ArchiveData:     data,
-	}, nil
-}
-
-func parseReplaceArchiveRequest(c *gin.Context) (usecase.ReplaceMapArchiveInput, error) {
-	fileHeader, err := c.FormFile("archive")
-	if err != nil {
-		return usecase.ReplaceMapArchiveInput{}, err
-	}
-
-	file, err := fileHeader.Open()
-	if err != nil {
-		return usecase.ReplaceMapArchiveInput{}, err
-	}
-	defer file.Close()
-
-	data, err := io.ReadAll(file)
-	if err != nil {
-		return usecase.ReplaceMapArchiveInput{}, err
-	}
-
-	return usecase.ReplaceMapArchiveInput{
-		ArchiveName:     fileHeader.Filename,
-		ArchiveMimeType: fileHeader.Header.Get("Content-Type"),
-		ArchiveData:     data,
-	}, nil
 }
 
 func parseUUIDParam(value string) (string, error) {

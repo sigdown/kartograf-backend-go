@@ -1,10 +1,8 @@
 package usecase
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"io"
 	"testing"
 	"time"
 
@@ -178,24 +176,16 @@ func (f *fakeMapRepo) Delete(ctx context.Context, mapID string) error {
 }
 
 type fakeStorage struct {
-	uploadFn    func(ctx context.Context, bucket, objectKey string, body io.Reader, size int64, contentType string) error
-	deleteFn    func(ctx context.Context, bucket, objectKey string) error
-	presignFn   func(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error)
-	uploadedKey string
-	deletedKey  string
-	uploadedBuf []byte
+	deleteFn     func(ctx context.Context, bucket, objectKey string) error
+	presignPutFn func(ctx context.Context, bucket, objectKey string, expiry time.Duration, contentType string) (string, error)
+	presignGetFn func(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error)
+	statFn       func(ctx context.Context, bucket, objectKey string) (StoredObjectInfo, error)
+	presignedKey string
+	deletedKey   string
+	lastMimeType string
 }
 
 func (f *fakeStorage) EnsureBucket(ctx context.Context, bucket string) error {
-	return nil
-}
-
-func (f *fakeStorage) Upload(ctx context.Context, bucket, objectKey string, body io.Reader, size int64, contentType string) error {
-	f.uploadedKey = objectKey
-	f.uploadedBuf, _ = io.ReadAll(body)
-	if f.uploadFn != nil {
-		return f.uploadFn(ctx, bucket, objectKey, bytes.NewReader(f.uploadedBuf), size, contentType)
-	}
 	return nil
 }
 
@@ -207,11 +197,27 @@ func (f *fakeStorage) Delete(ctx context.Context, bucket, objectKey string) erro
 	return nil
 }
 
+func (f *fakeStorage) PresignUpload(ctx context.Context, bucket, objectKey string, expiry time.Duration, contentType string) (string, error) {
+	f.presignedKey = objectKey
+	f.lastMimeType = contentType
+	if f.presignPutFn != nil {
+		return f.presignPutFn(ctx, bucket, objectKey, expiry, contentType)
+	}
+	return "http://example.com/upload", nil
+}
+
 func (f *fakeStorage) PresignDownload(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error) {
-	if f.presignFn != nil {
-		return f.presignFn(ctx, bucket, objectKey, expiry)
+	if f.presignGetFn != nil {
+		return f.presignGetFn(ctx, bucket, objectKey, expiry)
 	}
 	return "http://example.com/archive", nil
+}
+
+func (f *fakeStorage) StatObject(ctx context.Context, bucket, objectKey string) (StoredObjectInfo, error) {
+	if f.statFn != nil {
+		return f.statFn(ctx, bucket, objectKey)
+	}
+	return StoredObjectInfo{Size: 1024, ETag: "etag"}, nil
 }
 
 func TestAuthServiceRegisterHashesPasswordAndReturnsToken(t *testing.T) {
@@ -286,6 +292,42 @@ func TestPointServiceUpdateRejectsForeignPoint(t *testing.T) {
 	}
 }
 
+func TestMapServiceStartCreateUploadReturnsPresignedURL(t *testing.T) {
+	storage := &fakeStorage{
+		presignPutFn: func(ctx context.Context, bucket, objectKey string, expiry time.Duration, contentType string) (string, error) {
+			if bucket != "maps" {
+				t.Fatalf("unexpected bucket: %s", bucket)
+			}
+			if contentType != "application/zip" {
+				t.Fatalf("unexpected content type: %s", contentType)
+			}
+			return "http://example.com/upload", nil
+		},
+	}
+
+	service := NewMapService(&fakeMapRepo{}, storage, "maps", time.Minute)
+	result, err := service.StartCreateUpload(context.Background(), CreateMapUploadInput{
+		Slug:            "old-map",
+		Title:           "Old Map",
+		Year:            1901,
+		ArchiveName:     "map file.zip",
+		ArchiveMimeType: "application/zip",
+	})
+	if err != nil {
+		t.Fatalf("start create upload: %v", err)
+	}
+
+	if result.UploadURL != "http://example.com/upload" {
+		t.Fatalf("unexpected upload url: %s", result.UploadURL)
+	}
+	if result.MapID == "" || result.ArchiveID == "" {
+		t.Fatal("expected generated ids")
+	}
+	if storage.presignedKey == "" {
+		t.Fatal("expected storage key")
+	}
+}
+
 func TestMapServiceCreateDeletesUploadedObjectOnRepositoryFailure(t *testing.T) {
 	repo := &fakeMapRepo{
 		createFn: func(ctx context.Context, m domain.Map, archive domain.MapArchive) (domain.Map, error) {
@@ -296,21 +338,18 @@ func TestMapServiceCreateDeletesUploadedObjectOnRepositoryFailure(t *testing.T) 
 	service := NewMapService(repo, storage, "maps", time.Minute)
 
 	_, err := service.Create(context.Background(), 1, CreateMapInput{
-		Slug:            "old-map",
-		Title:           "Old Map",
-		Year:            1901,
-		ArchiveName:     "map.zip",
-		ArchiveMimeType: "application/zip",
-		ArchiveData:     []byte("archive-bytes"),
+		MapID:      "550e8400-e29b-41d4-a716-446655440000",
+		ArchiveID:  "3d6f0a8b-1a2b-4c5d-9e7f-123456789abc",
+		StorageKey: "maps/550e8400-e29b-41d4-a716-446655440000/3d6f0a8b-1a2b-4c5d-9e7f-123456789abc-map.zip",
+		Slug:       "old-map",
+		Title:      "Old Map",
+		Year:       1901,
 	})
 	if !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("expected conflict error, got %v", err)
 	}
-	if storage.uploadedKey == "" {
-		t.Fatal("expected upload to happen")
-	}
-	if storage.deletedKey != storage.uploadedKey {
-		t.Fatalf("expected cleanup delete for %s, got %s", storage.uploadedKey, storage.deletedKey)
+	if storage.deletedKey != "maps/550e8400-e29b-41d4-a716-446655440000/3d6f0a8b-1a2b-4c5d-9e7f-123456789abc-map.zip" {
+		t.Fatalf("expected cleanup delete, got %s", storage.deletedKey)
 	}
 }
 
@@ -326,7 +365,7 @@ func TestMapServiceDownloadURLUsesActiveArchive(t *testing.T) {
 		},
 	}
 	storage := &fakeStorage{
-		presignFn: func(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error) {
+		presignGetFn: func(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error) {
 			if bucket != "maps" {
 				t.Fatalf("unexpected bucket: %s", bucket)
 			}
@@ -344,5 +383,26 @@ func TestMapServiceDownloadURLUsesActiveArchive(t *testing.T) {
 	}
 	if url != "http://example.com/download" {
 		t.Fatalf("unexpected url: %s", url)
+	}
+}
+
+func TestMapServiceReplaceArchiveDeletesUploadedObjectOnRepositoryFailure(t *testing.T) {
+	repo := &fakeMapRepo{
+		replaceFn: func(ctx context.Context, mapID string, archive domain.MapArchive) (domain.MapArchive, error) {
+			return domain.MapArchive{}, domain.ErrNotFound
+		},
+	}
+	storage := &fakeStorage{}
+	service := NewMapService(repo, storage, "maps", time.Minute)
+
+	_, err := service.ReplaceArchive(context.Background(), 1, "550e8400-e29b-41d4-a716-446655440000", ReplaceMapArchiveInput{
+		ArchiveID:  "3d6f0a8b-1a2b-4c5d-9e7f-123456789abc",
+		StorageKey: "maps/550e8400-e29b-41d4-a716-446655440000/3d6f0a8b-1a2b-4c5d-9e7f-123456789abc-map.zip",
+	})
+	if !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("expected not found error, got %v", err)
+	}
+	if storage.deletedKey == "" {
+		t.Fatal("expected cleanup delete")
 	}
 }

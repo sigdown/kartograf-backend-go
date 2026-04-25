@@ -1,8 +1,6 @@
 package usecase
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"strings"
 
@@ -50,11 +48,6 @@ func validatePassword(password string) error {
 	return nil
 }
 
-func checksumSHA256(data []byte) string {
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
-}
-
 func newUUID() string {
 	return uuid.NewString()
 }
@@ -65,4 +58,20 @@ func buildObjectKey(mapID, archiveID, filename string) string {
 		name = "archive.bin"
 	}
 	return fmt.Sprintf("maps/%s/%s-%s", mapID, archiveID, name)
+}
+
+func validateArchiveName(filename string) (string, error) {
+	name := strings.TrimSpace(filename)
+	if name == "" {
+		return "", fmt.Errorf("%w: archive file name is required", domain.ErrInvalidInput)
+	}
+	return name, nil
+}
+
+func validateStorageKey(mapID, archiveID, storageKey string) error {
+	expectedPrefix := fmt.Sprintf("maps/%s/%s-", mapID, archiveID)
+	if !strings.HasPrefix(storageKey, expectedPrefix) {
+		return fmt.Errorf("%w: invalid storage key", domain.ErrInvalidInput)
+	}
+	return nil
 }

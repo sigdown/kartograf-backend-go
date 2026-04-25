@@ -46,8 +46,10 @@ func NewRouter(services Services) *gin.Engine {
 
 	adminGroup := authGroup.Group("/admin")
 	adminGroup.Use(AdminOnly())
+	adminGroup.POST("/maps/upload-url", h.createMapUploadURL)
 	adminGroup.POST("/maps", h.createMap)
 	adminGroup.PATCH("/maps/:id", h.updateMapMetadata)
+	adminGroup.POST("/maps/:id/archive/upload-url", h.replaceMapArchiveUploadURL)
 	adminGroup.PUT("/maps/:id/archive", h.replaceMapArchive)
 	adminGroup.DELETE("/maps/:id", h.deleteMap)
 

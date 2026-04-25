@@ -11,6 +11,7 @@ type MapService struct {
 	maps        MapRepository
 	storage     ObjectStorage
 	bucket      string
+	uploadTTL   time.Duration
 	downloadTTL time.Duration
 }
 
@@ -19,6 +20,7 @@ func NewMapService(maps MapRepository, storage ObjectStorage, bucket string, dow
 		maps:        maps,
 		storage:     storage,
 		bucket:      bucket,
+		uploadTTL:   downloadTTL,
 		downloadTTL: downloadTTL,
 	}
 }
