@@ -103,14 +103,13 @@ func (r *PostgresMapRepository) CreateWithArchive(ctx context.Context, m domain.
 func (r *PostgresMapRepository) UpdateMetadata(ctx context.Context, mapID string, input usecase.UpdateMapMetadataInput) (domain.Map, error) {
 	row := r.pool.QueryRow(ctx, `
 		update map
-		set slug = $2,
-		    title = $3,
-		    description = nullif($4, ''),
-		    year = nullif($5, 0),
+		set title = $2,
+		    description = nullif($3, ''),
+		    year = nullif($4, 0),
 		    updated_at = now()
 		where uuid = $1
 		returning uuid::text, created_by, coalesce(current_archive_id::text, ''), slug, title, coalesce(description, ''), coalesce(year, 0), created_at, updated_at
-	`, mapID, input.Slug, input.Title, input.Description, input.Year)
+	`, mapID, input.Title, input.Description, input.Year)
 
 	m, err := scanMap(row)
 	if err != nil {

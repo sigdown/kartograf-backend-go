@@ -119,7 +119,7 @@ func (f *fakeMapRepo) GetBySlug(ctx context.Context, slug string) (domain.Map, e
 	if f.getBySlugFn != nil {
 		return f.getBySlugFn(ctx, slug)
 	}
-	return domain.Map{}, nil
+	return domain.Map{}, domain.ErrNotFound
 }
 
 func (f *fakeMapRepo) GetByID(ctx context.Context, mapID string) (domain.Map, error) {
@@ -310,7 +310,7 @@ func TestMapServiceStartCreateUploadReturnsPresignedURL(t *testing.T) {
 		Slug:            "old-map",
 		Title:           "Old Map",
 		Year:            1901,
-		ArchiveName:     "map file.zip",
+		ArchiveName:     "map.pmtiles",
 		ArchiveMimeType: "application/zip",
 	})
 	if err != nil {
@@ -326,6 +326,29 @@ func TestMapServiceStartCreateUploadReturnsPresignedURL(t *testing.T) {
 	if storage.presignedKey == "" {
 		t.Fatal("expected storage key")
 	}
+	if storage.presignedKey != "kartograf/old-map.pmtiles" {
+		t.Fatalf("unexpected storage key: %s", storage.presignedKey)
+	}
+}
+
+func TestMapServiceStartCreateUploadRejectsExistingSlug(t *testing.T) {
+	repo := &fakeMapRepo{
+		getBySlugFn: func(ctx context.Context, slug string) (domain.Map, error) {
+			return domain.Map{ID: "map-id", Slug: slug}, nil
+		},
+	}
+
+	service := NewMapService(repo, &fakeStorage{}, "maps", time.Minute)
+	_, err := service.StartCreateUpload(context.Background(), CreateMapUploadInput{
+		Slug:            "old-map",
+		Title:           "Old Map",
+		Year:            1901,
+		ArchiveName:     "map.pmtiles",
+		ArchiveMimeType: "application/zip",
+	})
+	if !errors.Is(err, domain.ErrConflict) {
+		t.Fatalf("expected conflict error, got %v", err)
+	}
 }
 
 func TestMapServiceCreateDeletesUploadedObjectOnRepositoryFailure(t *testing.T) {
@@ -340,7 +363,7 @@ func TestMapServiceCreateDeletesUploadedObjectOnRepositoryFailure(t *testing.T) 
 	_, err := service.Create(context.Background(), 1, CreateMapInput{
 		MapID:      "550e8400-e29b-41d4-a716-446655440000",
 		ArchiveID:  "3d6f0a8b-1a2b-4c5d-9e7f-123456789abc",
-		StorageKey: "maps/550e8400-e29b-41d4-a716-446655440000/3d6f0a8b-1a2b-4c5d-9e7f-123456789abc-map.zip",
+		StorageKey: "kartograf/old-map.pmtiles",
 		Slug:       "old-map",
 		Title:      "Old Map",
 		Year:       1901,
@@ -348,8 +371,8 @@ func TestMapServiceCreateDeletesUploadedObjectOnRepositoryFailure(t *testing.T) 
 	if !errors.Is(err, domain.ErrConflict) {
 		t.Fatalf("expected conflict error, got %v", err)
 	}
-	if storage.deletedKey != "maps/550e8400-e29b-41d4-a716-446655440000/3d6f0a8b-1a2b-4c5d-9e7f-123456789abc-map.zip" {
-		t.Fatalf("expected cleanup delete, got %s", storage.deletedKey)
+	if storage.deletedKey != "" {
+		t.Fatalf("did not expect delete for stable storage key, got %s", storage.deletedKey)
 	}
 }
 
@@ -360,7 +383,7 @@ func TestMapServiceDownloadURLUsesActiveArchive(t *testing.T) {
 				ID:         "archive-id",
 				MapID:      mapID,
 				Bucket:     "maps",
-				StorageKey: "maps/1/archive.zip",
+				StorageKey: "kartograf/old-map.pmtiles",
 			}, nil
 		},
 	}
@@ -369,7 +392,7 @@ func TestMapServiceDownloadURLUsesActiveArchive(t *testing.T) {
 			if bucket != "maps" {
 				t.Fatalf("unexpected bucket: %s", bucket)
 			}
-			if objectKey != "maps/1/archive.zip" {
+			if objectKey != "kartograf/old-map.pmtiles" {
 				t.Fatalf("unexpected key: %s", objectKey)
 			}
 			return "http://example.com/download", nil
@@ -388,6 +411,9 @@ func TestMapServiceDownloadURLUsesActiveArchive(t *testing.T) {
 
 func TestMapServiceReplaceArchiveDeletesUploadedObjectOnRepositoryFailure(t *testing.T) {
 	repo := &fakeMapRepo{
+		getByIDFn: func(ctx context.Context, mapID string) (domain.Map, error) {
+			return domain.Map{ID: mapID, Slug: "old-map"}, nil
+		},
 		replaceFn: func(ctx context.Context, mapID string, archive domain.MapArchive) (domain.MapArchive, error) {
 			return domain.MapArchive{}, domain.ErrNotFound
 		},
@@ -397,12 +423,34 @@ func TestMapServiceReplaceArchiveDeletesUploadedObjectOnRepositoryFailure(t *tes
 
 	_, err := service.ReplaceArchive(context.Background(), 1, "550e8400-e29b-41d4-a716-446655440000", ReplaceMapArchiveInput{
 		ArchiveID:  "3d6f0a8b-1a2b-4c5d-9e7f-123456789abc",
-		StorageKey: "maps/550e8400-e29b-41d4-a716-446655440000/3d6f0a8b-1a2b-4c5d-9e7f-123456789abc-map.zip",
+		StorageKey: "kartograf/old-map.pmtiles",
 	})
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("expected not found error, got %v", err)
 	}
-	if storage.deletedKey == "" {
-		t.Fatal("expected cleanup delete")
+	if storage.deletedKey != "" {
+		t.Fatalf("did not expect delete for stable storage key, got %s", storage.deletedKey)
+	}
+}
+
+func TestMapServiceStartReplaceArchiveUploadUsesStableSlugKey(t *testing.T) {
+	repo := &fakeMapRepo{
+		getByIDFn: func(ctx context.Context, mapID string) (domain.Map, error) {
+			return domain.Map{ID: mapID, Slug: "old-map"}, nil
+		},
+	}
+	storage := &fakeStorage{}
+	service := NewMapService(repo, storage, "maps", time.Minute)
+
+	result, err := service.StartReplaceArchiveUpload(context.Background(), "550e8400-e29b-41d4-a716-446655440000", ReplaceMapArchiveUploadInput{
+		ArchiveName:     "map.pmtiles",
+		ArchiveMimeType: "application/pmtiles",
+	})
+	if err != nil {
+		t.Fatalf("start replace upload: %v", err)
+	}
+
+	if result.StorageKey != "kartograf/old-map.pmtiles" {
+		t.Fatalf("unexpected storage key: %s", result.StorageKey)
 	}
 }

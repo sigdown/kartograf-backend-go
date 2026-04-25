@@ -22,17 +22,17 @@ func (s *MapService) StartReplaceArchiveUpload(ctx context.Context, mapID string
 		return PresignedUploadResult{}, err
 	}
 
-	if _, err := s.maps.GetByID(ctx, normalizedMapID); err != nil {
-		return PresignedUploadResult{}, err
-	}
-
-	archiveName, err := validateArchiveName(input.ArchiveName)
+	m, err := s.maps.GetByID(ctx, normalizedMapID)
 	if err != nil {
 		return PresignedUploadResult{}, err
 	}
 
+	if _, err := validateArchiveName(input.ArchiveName); err != nil {
+		return PresignedUploadResult{}, err
+	}
+
 	archiveID := newUUID()
-	objectKey := buildObjectKey(normalizedMapID, archiveID, archiveName)
+	objectKey := buildObjectKey(m.Slug)
 	uploadURL, err := s.storage.PresignUpload(ctx, s.bucket, objectKey, s.uploadTTL, input.ArchiveMimeType)
 	if err != nil {
 		return PresignedUploadResult{}, err
@@ -53,16 +53,22 @@ func (s *MapService) ReplaceArchive(ctx context.Context, actorID int64, mapID st
 		return domain.MapArchive{}, err
 	}
 
+	m, err := s.maps.GetByID(ctx, normalizedMapID)
+	if err != nil {
+		return domain.MapArchive{}, err
+	}
+
 	archiveID, err := parseUUIDValue(input.ArchiveID, "archive_id")
 	if err != nil {
 		return domain.MapArchive{}, err
 	}
 
-	if err := validateStorageKey(normalizedMapID, archiveID, input.StorageKey); err != nil {
+	if err := validateStorageKey(m.Slug, input.StorageKey); err != nil {
 		return domain.MapArchive{}, err
 	}
 
-	objectInfo, err := s.storage.StatObject(ctx, s.bucket, input.StorageKey)
+	objectKey := buildObjectKey(m.Slug)
+	objectInfo, err := s.storage.StatObject(ctx, s.bucket, objectKey)
 	if err != nil {
 		return domain.MapArchive{}, err
 	}
@@ -71,14 +77,13 @@ func (s *MapService) ReplaceArchive(ctx context.Context, actorID int64, mapID st
 		ID:         archiveID,
 		MapID:      normalizedMapID,
 		Bucket:     s.bucket,
-		StorageKey: input.StorageKey,
+		StorageKey: objectKey,
 		UploadedBy: actorID,
 		SizeBytes:  objectInfo.Size,
 		Checksum:   "",
 		Status:     domain.ArchiveStatusActive,
 	})
 	if err != nil {
-		_ = s.storage.Delete(ctx, s.bucket, input.StorageKey)
 		return domain.MapArchive{}, err
 	}
 

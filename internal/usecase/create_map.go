@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -38,7 +39,8 @@ type PresignedUploadResult struct {
 }
 
 func (s *MapService) StartCreateUpload(ctx context.Context, input CreateMapUploadInput) (PresignedUploadResult, error) {
-	if _, err := requiredTrimmed(input.Slug, "slug"); err != nil {
+	slug, err := requiredTrimmed(input.Slug, "slug")
+	if err != nil {
 		return PresignedUploadResult{}, err
 	}
 
@@ -50,14 +52,19 @@ func (s *MapService) StartCreateUpload(ctx context.Context, input CreateMapUploa
 		return PresignedUploadResult{}, err
 	}
 
-	archiveName, err := validateArchiveName(input.ArchiveName)
-	if err != nil {
+	if _, err := validateArchiveName(input.ArchiveName); err != nil {
+		return PresignedUploadResult{}, err
+	}
+
+	if _, err := s.maps.GetBySlug(ctx, slug); err == nil {
+		return PresignedUploadResult{}, fmt.Errorf("%w: map with slug already exists", domain.ErrConflict)
+	} else if !errors.Is(err, domain.ErrNotFound) {
 		return PresignedUploadResult{}, err
 	}
 
 	mapID := newUUID()
 	archiveID := newUUID()
-	objectKey := buildObjectKey(mapID, archiveID, archiveName)
+	objectKey := buildObjectKey(slug)
 	uploadURL, err := s.storage.PresignUpload(ctx, s.bucket, objectKey, s.uploadTTL, input.ArchiveMimeType)
 	if err != nil {
 		return PresignedUploadResult{}, err
@@ -98,11 +105,12 @@ func (s *MapService) Create(ctx context.Context, actorID int64, input CreateMapI
 		return domain.Map{}, err
 	}
 
-	if err := validateStorageKey(mapID, archiveID, input.StorageKey); err != nil {
+	if err := validateStorageKey(slug, input.StorageKey); err != nil {
 		return domain.Map{}, err
 	}
 
-	objectInfo, err := s.storage.StatObject(ctx, s.bucket, input.StorageKey)
+	objectKey := buildObjectKey(slug)
+	objectInfo, err := s.storage.StatObject(ctx, s.bucket, objectKey)
 	if err != nil {
 		return domain.Map{}, err
 	}
@@ -118,14 +126,13 @@ func (s *MapService) Create(ctx context.Context, actorID int64, input CreateMapI
 		ID:         archiveID,
 		MapID:      mapID,
 		Bucket:     s.bucket,
-		StorageKey: input.StorageKey,
+		StorageKey: objectKey,
 		UploadedBy: actorID,
 		SizeBytes:  objectInfo.Size,
 		Checksum:   "",
 		Status:     domain.ArchiveStatusActive,
 	})
 	if err != nil {
-		_ = s.storage.Delete(ctx, s.bucket, input.StorageKey)
 		return domain.Map{}, err
 	}
 

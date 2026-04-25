@@ -52,12 +52,8 @@ func newUUID() string {
 	return uuid.NewString()
 }
 
-func buildObjectKey(mapID, archiveID, filename string) string {
-	name := strings.ReplaceAll(strings.TrimSpace(filename), " ", "_")
-	if name == "" {
-		name = "archive.bin"
-	}
-	return fmt.Sprintf("maps/%s/%s-%s", mapID, archiveID, name)
+func buildObjectKey(slug string) string {
+	return fmt.Sprintf("kartograf/%s.pmtiles", strings.TrimSpace(slug))
 }
 
 func validateArchiveName(filename string) (string, error) {
@@ -65,12 +61,15 @@ func validateArchiveName(filename string) (string, error) {
 	if name == "" {
 		return "", fmt.Errorf("%w: archive file name is required", domain.ErrInvalidInput)
 	}
+	if !strings.HasSuffix(strings.ToLower(name), ".pmtiles") {
+		return "", fmt.Errorf("%w: archive file must be .pmtiles", domain.ErrInvalidInput)
+	}
 	return name, nil
 }
 
-func validateStorageKey(mapID, archiveID, storageKey string) error {
-	expectedPrefix := fmt.Sprintf("maps/%s/%s-", mapID, archiveID)
-	if !strings.HasPrefix(storageKey, expectedPrefix) {
+func validateStorageKey(slug, storageKey string) error {
+	expected := buildObjectKey(slug)
+	if storageKey != expected {
 		return fmt.Errorf("%w: invalid storage key", domain.ErrInvalidInput)
 	}
 	return nil
