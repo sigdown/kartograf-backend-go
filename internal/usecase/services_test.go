@@ -177,12 +177,11 @@ func (f *fakeMapRepo) Delete(ctx context.Context, mapID string) error {
 
 type fakeStorage struct {
 	deleteFn     func(ctx context.Context, bucket, objectKey string) error
-	presignPutFn func(ctx context.Context, bucket, objectKey string, expiry time.Duration, contentType string) (string, error)
+	presignPutFn func(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error)
 	presignGetFn func(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error)
 	statFn       func(ctx context.Context, bucket, objectKey string) (StoredObjectInfo, error)
 	presignedKey string
 	deletedKey   string
-	lastMimeType string
 }
 
 func (f *fakeStorage) EnsureBucket(ctx context.Context, bucket string) error {
@@ -197,11 +196,10 @@ func (f *fakeStorage) Delete(ctx context.Context, bucket, objectKey string) erro
 	return nil
 }
 
-func (f *fakeStorage) PresignUpload(ctx context.Context, bucket, objectKey string, expiry time.Duration, contentType string) (string, error) {
+func (f *fakeStorage) PresignUpload(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error) {
 	f.presignedKey = objectKey
-	f.lastMimeType = contentType
 	if f.presignPutFn != nil {
-		return f.presignPutFn(ctx, bucket, objectKey, expiry, contentType)
+		return f.presignPutFn(ctx, bucket, objectKey, expiry)
 	}
 	return "http://example.com/upload", nil
 }
@@ -294,12 +292,9 @@ func TestPointServiceUpdateRejectsForeignPoint(t *testing.T) {
 
 func TestMapServiceStartCreateUploadReturnsPresignedURL(t *testing.T) {
 	storage := &fakeStorage{
-		presignPutFn: func(ctx context.Context, bucket, objectKey string, expiry time.Duration, contentType string) (string, error) {
+		presignPutFn: func(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error) {
 			if bucket != "maps" {
 				t.Fatalf("unexpected bucket: %s", bucket)
-			}
-			if contentType != "application/zip" {
-				t.Fatalf("unexpected content type: %s", contentType)
 			}
 			return "http://example.com/upload", nil
 		},

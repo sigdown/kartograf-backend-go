@@ -37,7 +37,7 @@ type MapRepository interface {
 type ObjectStorage interface {
 	EnsureBucket(ctx context.Context, bucket string) error
 	Delete(ctx context.Context, bucket, objectKey string) error
-	PresignUpload(ctx context.Context, bucket, objectKey string, expiry time.Duration, contentType string) (string, error)
+	PresignUpload(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error)
 	PresignDownload(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error)
 	StatObject(ctx context.Context, bucket, objectKey string) (StoredObjectInfo, error)
 }

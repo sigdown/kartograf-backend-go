@@ -33,7 +33,7 @@ func (s *MapService) StartReplaceArchiveUpload(ctx context.Context, mapID string
 
 	archiveID := newUUID()
 	objectKey := buildObjectKey(m.Slug)
-	uploadURL, err := s.storage.PresignUpload(ctx, s.bucket, objectKey, s.uploadTTL, input.ArchiveMimeType)
+	uploadURL, err := s.storage.PresignUpload(ctx, s.bucket, objectKey, s.uploadTTL)
 	if err != nil {
 		return PresignedUploadResult{}, err
 	}

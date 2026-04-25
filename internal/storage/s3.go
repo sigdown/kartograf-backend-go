@@ -60,13 +60,8 @@ func (s *S3Storage) Delete(ctx context.Context, bucket, objectKey string) error 
 	return nil
 }
 
-func (s *S3Storage) PresignUpload(ctx context.Context, bucket, objectKey string, expiry time.Duration, contentType string) (string, error) {
-	reqParams := make(url.Values)
-	if contentType != "" {
-		reqParams.Set("Content-Type", contentType)
-	}
-
-	u, err := s.client.PresignHeader(ctx, "PUT", bucket, objectKey, expiry, reqParams, nil)
+func (s *S3Storage) PresignUpload(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error) {
+	u, err := s.client.PresignedPutObject(ctx, bucket, objectKey, expiry)
 	if err != nil {
 		return "", fmt.Errorf("presign upload: %w", err)
 	}
