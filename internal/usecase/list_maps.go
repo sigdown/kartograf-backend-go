@@ -15,12 +15,12 @@ type MapService struct {
 	downloadTTL time.Duration
 }
 
-func NewMapService(maps MapRepository, storage ObjectStorage, bucket string, downloadTTL time.Duration) *MapService {
+func NewMapService(maps MapRepository, storage ObjectStorage, bucket string, uploadTTL, downloadTTL time.Duration) *MapService {
 	return &MapService{
 		maps:        maps,
 		storage:     storage,
 		bucket:      bucket,
-		uploadTTL:   downloadTTL,
+		uploadTTL:   uploadTTL,
 		downloadTTL: downloadTTL,
 	}
 }

@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"time"
 
 	"github.com/joho/godotenv"
 
@@ -58,7 +57,7 @@ func main() {
 	router := apphttp.NewRouter(apphttp.Services{
 		Auth:   usecase.NewAuthService(userRepo, tokenManager),
 		Points: usecase.NewPointService(pointRepo),
-		Maps:   usecase.NewMapService(mapRepo, s3Storage, cfg.S3.Bucket, 15*time.Minute),
+		Maps:   usecase.NewMapService(mapRepo, s3Storage, cfg.S3.Bucket, cfg.S3.PresignUploadTTL, cfg.S3.PresignDownloadTTL),
 		Tokens: tokenManager,
 	})
 

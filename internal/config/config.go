@@ -18,12 +18,14 @@ type Config struct {
 	}
 
 	S3 struct {
-		Endpoint     string `env:"S3_ENDPOINT" env-required:"true"`
-		Region       string `env:"S3_REGION" env-required:"true"`
-		AccessKey    string `env:"S3_ACCESS_KEY" env-required:"true"`
-		SecretKey    string `env:"S3_SECRET_KEY" env-required:"true"`
-		Bucket       string `env:"S3_BUCKET" env-required:"true"`
-		UsePathStyle bool   `env:"S3_USE_PATH_STYLE" env-default:"true"`
+		Endpoint           string        `env:"S3_ENDPOINT" env-required:"true"`
+		Region             string        `env:"S3_REGION" env-required:"true"`
+		AccessKey          string        `env:"S3_ACCESS_KEY" env-required:"true"`
+		SecretKey          string        `env:"S3_SECRET_KEY" env-required:"true"`
+		Bucket             string        `env:"S3_BUCKET" env-required:"true"`
+		UsePathStyle       bool          `env:"S3_USE_PATH_STYLE" env-default:"true"`
+		PresignUploadTTL   time.Duration `env:"S3_PRESIGN_UPLOAD_TTL" env-default:"15m"`
+		PresignDownloadTTL time.Duration `env:"S3_PRESIGN_DOWNLOAD_TTL" env-default:"15m"`
 	}
 
 	Auth struct {

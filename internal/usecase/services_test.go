@@ -182,6 +182,8 @@ type fakeStorage struct {
 	statFn       func(ctx context.Context, bucket, objectKey string) (StoredObjectInfo, error)
 	presignedKey string
 	deletedKey   string
+	uploadExpiry time.Duration
+	downloadTTL  time.Duration
 }
 
 func (f *fakeStorage) EnsureBucket(ctx context.Context, bucket string) error {
@@ -198,6 +200,7 @@ func (f *fakeStorage) Delete(ctx context.Context, bucket, objectKey string) erro
 
 func (f *fakeStorage) PresignUpload(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error) {
 	f.presignedKey = objectKey
+	f.uploadExpiry = expiry
 	if f.presignPutFn != nil {
 		return f.presignPutFn(ctx, bucket, objectKey, expiry)
 	}
@@ -205,6 +208,7 @@ func (f *fakeStorage) PresignUpload(ctx context.Context, bucket, objectKey strin
 }
 
 func (f *fakeStorage) PresignDownload(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error) {
+	f.downloadTTL = expiry
 	if f.presignGetFn != nil {
 		return f.presignGetFn(ctx, bucket, objectKey, expiry)
 	}
@@ -300,7 +304,7 @@ func TestMapServiceStartCreateUploadReturnsPresignedURL(t *testing.T) {
 		},
 	}
 
-	service := NewMapService(&fakeMapRepo{}, storage, "maps", time.Minute)
+	service := NewMapService(&fakeMapRepo{}, storage, "maps", time.Minute, 2*time.Minute)
 	result, err := service.StartCreateUpload(context.Background(), CreateMapUploadInput{
 		Slug:            "old-map",
 		Title:           "Old Map",
@@ -324,6 +328,12 @@ func TestMapServiceStartCreateUploadReturnsPresignedURL(t *testing.T) {
 	if storage.presignedKey != "old-map.pmtiles" {
 		t.Fatalf("unexpected storage key: %s", storage.presignedKey)
 	}
+	if storage.uploadExpiry != time.Minute {
+		t.Fatalf("unexpected upload ttl: %s", storage.uploadExpiry)
+	}
+	if result.ExpiresInSeconds != int64(time.Minute.Seconds()) {
+		t.Fatalf("unexpected expires_in_seconds: %d", result.ExpiresInSeconds)
+	}
 }
 
 func TestMapServiceStartCreateUploadRejectsExistingSlug(t *testing.T) {
@@ -333,7 +343,7 @@ func TestMapServiceStartCreateUploadRejectsExistingSlug(t *testing.T) {
 		},
 	}
 
-	service := NewMapService(repo, &fakeStorage{}, "maps", time.Minute)
+	service := NewMapService(repo, &fakeStorage{}, "maps", time.Minute, time.Minute)
 	_, err := service.StartCreateUpload(context.Background(), CreateMapUploadInput{
 		Slug:            "old-map",
 		Title:           "Old Map",
@@ -353,7 +363,7 @@ func TestMapServiceCreateDeletesUploadedObjectOnRepositoryFailure(t *testing.T) 
 		},
 	}
 	storage := &fakeStorage{}
-	service := NewMapService(repo, storage, "maps", time.Minute)
+	service := NewMapService(repo, storage, "maps", time.Minute, time.Minute)
 
 	_, err := service.Create(context.Background(), 1, CreateMapInput{
 		MapID:      "550e8400-e29b-41d4-a716-446655440000",
@@ -393,7 +403,7 @@ func TestMapServiceDownloadURLUsesActiveArchive(t *testing.T) {
 			return "http://example.com/download", nil
 		},
 	}
-	service := NewMapService(repo, storage, "maps", time.Minute)
+	service := NewMapService(repo, storage, "maps", time.Minute, 2*time.Minute)
 
 	url, err := service.DownloadURL(context.Background(), "map-id")
 	if err != nil {
@@ -401,6 +411,9 @@ func TestMapServiceDownloadURLUsesActiveArchive(t *testing.T) {
 	}
 	if url != "http://example.com/download" {
 		t.Fatalf("unexpected url: %s", url)
+	}
+	if storage.downloadTTL != 2*time.Minute {
+		t.Fatalf("unexpected download ttl: %s", storage.downloadTTL)
 	}
 }
 
@@ -414,7 +427,7 @@ func TestMapServiceReplaceArchiveDeletesUploadedObjectOnRepositoryFailure(t *tes
 		},
 	}
 	storage := &fakeStorage{}
-	service := NewMapService(repo, storage, "maps", time.Minute)
+	service := NewMapService(repo, storage, "maps", time.Minute, time.Minute)
 
 	_, err := service.ReplaceArchive(context.Background(), 1, "550e8400-e29b-41d4-a716-446655440000", ReplaceMapArchiveInput{
 		ArchiveID:  "3d6f0a8b-1a2b-4c5d-9e7f-123456789abc",
@@ -435,7 +448,7 @@ func TestMapServiceStartReplaceArchiveUploadUsesStableSlugKey(t *testing.T) {
 		},
 	}
 	storage := &fakeStorage{}
-	service := NewMapService(repo, storage, "maps", time.Minute)
+	service := NewMapService(repo, storage, "maps", 3*time.Minute, time.Minute)
 
 	result, err := service.StartReplaceArchiveUpload(context.Background(), "550e8400-e29b-41d4-a716-446655440000", ReplaceMapArchiveUploadInput{
 		ArchiveName:     "map.pmtiles",
@@ -447,5 +460,11 @@ func TestMapServiceStartReplaceArchiveUploadUsesStableSlugKey(t *testing.T) {
 
 	if result.StorageKey != "old-map.pmtiles" {
 		t.Fatalf("unexpected storage key: %s", result.StorageKey)
+	}
+	if storage.uploadExpiry != 3*time.Minute {
+		t.Fatalf("unexpected upload ttl: %s", storage.uploadExpiry)
+	}
+	if result.ExpiresInSeconds != int64((3 * time.Minute).Seconds()) {
+		t.Fatalf("unexpected expires_in_seconds: %d", result.ExpiresInSeconds)
 	}
 }

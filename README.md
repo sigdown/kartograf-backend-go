@@ -48,6 +48,8 @@ cp .env.example .env
 - `S3_ACCESS_KEY`, `S3_SECRET_KEY` — credentials для object storage
 - `S3_BUCKET` — bucket для PMTiles-архивов
 - `S3_USE_PATH_STYLE` — нужен ли path-style доступ
+- `S3_PRESIGN_UPLOAD_TTL` — время жизни presigned upload URL
+- `S3_PRESIGN_DOWNLOAD_TTL` — время жизни presigned download URL
 - `AUTH_JWT_SECRET` — секрет для подписи JWT
 - `AUTH_ACCESS_TOKEN_TTL` — время жизни access token
 
