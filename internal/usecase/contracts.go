@@ -9,6 +9,7 @@ import (
 
 type UserRepository interface {
 	Create(ctx context.Context, user domain.User) (domain.User, error)
+	GetByID(ctx context.Context, userID int64) (domain.User, error)
 	FindByLogin(ctx context.Context, login string) (domain.User, error)
 	Update(ctx context.Context, userID int64, input UpdateAccountInput) (domain.User, error)
 	Delete(ctx context.Context, userID int64) error

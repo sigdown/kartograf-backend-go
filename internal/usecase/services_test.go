@@ -12,6 +12,7 @@ import (
 
 type fakeUserRepo struct {
 	createFn    func(ctx context.Context, user domain.User) (domain.User, error)
+	getByIDFn   func(ctx context.Context, userID int64) (domain.User, error)
 	findFn      func(ctx context.Context, login string) (domain.User, error)
 	updateFn    func(ctx context.Context, userID int64, input UpdateAccountInput) (domain.User, error)
 	deleteFn    func(ctx context.Context, userID int64) error
@@ -25,6 +26,13 @@ func (f *fakeUserRepo) Create(ctx context.Context, user domain.User) (domain.Use
 	}
 	user.ID = 1
 	return user, nil
+}
+
+func (f *fakeUserRepo) GetByID(ctx context.Context, userID int64) (domain.User, error) {
+	if f.getByIDFn != nil {
+		return f.getByIDFn(ctx, userID)
+	}
+	return domain.User{}, domain.ErrNotFound
 }
 
 func (f *fakeUserRepo) FindByLogin(ctx context.Context, login string) (domain.User, error) {
@@ -273,6 +281,33 @@ func TestAuthServiceLoginRejectsBadPassword(t *testing.T) {
 	})
 	if !errors.Is(err, domain.ErrUnauthorized) {
 		t.Fatalf("expected unauthorized error, got %v", err)
+	}
+}
+
+func TestAuthServiceMeReturnsCurrentUser(t *testing.T) {
+	userRepo := &fakeUserRepo{
+		getByIDFn: func(ctx context.Context, userID int64) (domain.User, error) {
+			return domain.User{
+				ID:          userID,
+				Username:    "alice",
+				DisplayName: "Alice",
+				Email:       "alice@example.com",
+				Role:        domain.RoleUser,
+			}, nil
+		},
+	}
+
+	service := NewAuthService(userRepo, auth.NewTokenManager("secret", time.Hour))
+	user, err := service.Me(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("me: %v", err)
+	}
+
+	if user.ID != 7 {
+		t.Fatalf("unexpected user id: %d", user.ID)
+	}
+	if user.Email != "alice@example.com" {
+		t.Fatalf("unexpected email: %s", user.Email)
 	}
 }
 

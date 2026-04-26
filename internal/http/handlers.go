@@ -56,6 +56,22 @@ func (h *handler) loginUser(c *gin.Context) {
 	c.JSON(http.StatusOK, result)
 }
 
+func (h *handler) getCurrentUser(c *gin.Context) {
+	claims, ok := CurrentClaims(c)
+	if !ok {
+		writeError(c, http.StatusUnauthorized, "missing auth context")
+		return
+	}
+
+	user, err := h.auth.Me(c.Request.Context(), claims.UserID)
+	if err != nil {
+		writeError(c, statusFromError(err), err.Error())
+		return
+	}
+
+	c.JSON(http.StatusOK, user)
+}
+
 func (h *handler) updateAccount(c *gin.Context) {
 	claims, ok := CurrentClaims(c)
 	if !ok {

@@ -37,6 +37,24 @@ func (r *PostgresUserRepository) Create(ctx context.Context, user domain.User) (
 	return created, nil
 }
 
+func (r *PostgresUserRepository) GetByID(ctx context.Context, userID int64) (domain.User, error) {
+	row := r.pool.QueryRow(ctx, `
+		select user_id, username, coalesce(display_name, ''), email, password_hash, role, created_at, updated_at
+		from "user"
+		where user_id = $1
+	`, userID)
+
+	user, err := scanUser(row)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return domain.User{}, fmt.Errorf("%w: user not found", domain.ErrNotFound)
+		}
+		return domain.User{}, err
+	}
+
+	return user, nil
+}
+
 func (r *PostgresUserRepository) FindByLogin(ctx context.Context, login string) (domain.User, error) {
 	row := r.pool.QueryRow(ctx, `
 		select user_id, username, coalesce(display_name, ''), email, password_hash, role, created_at, updated_at

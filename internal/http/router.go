@@ -36,6 +36,7 @@ func NewRouter(services Services) *gin.Engine {
 
 	authGroup := r.Group("/")
 	authGroup.Use(AuthRequired(services.Tokens))
+	authGroup.GET("/auth/me", h.getCurrentUser)
 	authGroup.GET("/maps/by-id/:id/download", h.downloadMap)
 	authGroup.GET("/points", h.listPoints)
 	authGroup.POST("/points", h.createPoint)
