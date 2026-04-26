@@ -53,7 +53,7 @@ func newUUID() string {
 }
 
 func buildObjectKey(slug string) string {
-	return fmt.Sprintf("kartograf/%s.pmtiles", strings.TrimSpace(slug))
+	return fmt.Sprintf("%s.pmtiles", strings.TrimSpace(slug))
 }
 
 func validateArchiveName(filename string) (string, error) {

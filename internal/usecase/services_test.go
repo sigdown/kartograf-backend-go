@@ -321,7 +321,7 @@ func TestMapServiceStartCreateUploadReturnsPresignedURL(t *testing.T) {
 	if storage.presignedKey == "" {
 		t.Fatal("expected storage key")
 	}
-	if storage.presignedKey != "kartograf/old-map.pmtiles" {
+	if storage.presignedKey != "old-map.pmtiles" {
 		t.Fatalf("unexpected storage key: %s", storage.presignedKey)
 	}
 }
@@ -358,7 +358,7 @@ func TestMapServiceCreateDeletesUploadedObjectOnRepositoryFailure(t *testing.T) 
 	_, err := service.Create(context.Background(), 1, CreateMapInput{
 		MapID:      "550e8400-e29b-41d4-a716-446655440000",
 		ArchiveID:  "3d6f0a8b-1a2b-4c5d-9e7f-123456789abc",
-		StorageKey: "kartograf/old-map.pmtiles",
+		StorageKey: "old-map.pmtiles",
 		Slug:       "old-map",
 		Title:      "Old Map",
 		Year:       1901,
@@ -378,7 +378,7 @@ func TestMapServiceDownloadURLUsesActiveArchive(t *testing.T) {
 				ID:         "archive-id",
 				MapID:      mapID,
 				Bucket:     "maps",
-				StorageKey: "kartograf/old-map.pmtiles",
+				StorageKey: "old-map.pmtiles",
 			}, nil
 		},
 	}
@@ -387,7 +387,7 @@ func TestMapServiceDownloadURLUsesActiveArchive(t *testing.T) {
 			if bucket != "maps" {
 				t.Fatalf("unexpected bucket: %s", bucket)
 			}
-			if objectKey != "kartograf/old-map.pmtiles" {
+			if objectKey != "old-map.pmtiles" {
 				t.Fatalf("unexpected key: %s", objectKey)
 			}
 			return "http://example.com/download", nil
@@ -418,7 +418,7 @@ func TestMapServiceReplaceArchiveDeletesUploadedObjectOnRepositoryFailure(t *tes
 
 	_, err := service.ReplaceArchive(context.Background(), 1, "550e8400-e29b-41d4-a716-446655440000", ReplaceMapArchiveInput{
 		ArchiveID:  "3d6f0a8b-1a2b-4c5d-9e7f-123456789abc",
-		StorageKey: "kartograf/old-map.pmtiles",
+		StorageKey: "old-map.pmtiles",
 	})
 	if !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("expected not found error, got %v", err)
@@ -445,7 +445,7 @@ func TestMapServiceStartReplaceArchiveUploadUsesStableSlugKey(t *testing.T) {
 		t.Fatalf("start replace upload: %v", err)
 	}
 
-	if result.StorageKey != "kartograf/old-map.pmtiles" {
+	if result.StorageKey != "old-map.pmtiles" {
 		t.Fatalf("unexpected storage key: %s", result.StorageKey)
 	}
 }

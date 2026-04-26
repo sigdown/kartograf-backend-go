@@ -10,7 +10,7 @@
 ## Notes
 
 - Map `slug` is unique and immutable after creation
-- Active PMTiles object is stored by stable key: `kartograf/<slug>.pmtiles`
+- Active PMTiles object is stored by stable key: `<slug>.pmtiles`
 - Archive upload goes through presigned upload URL
 - Archive download returns presigned download URL
 
@@ -127,7 +127,7 @@
 {
   "map_id": "uuid",
   "archive_id": "uuid",
-  "storage_key": "kartograf/old-map.pmtiles",
+  "storage_key": "old-map.pmtiles",
   "slug": "old-map",
   "title": "Old Map",
   "description": "Demo map",
@@ -170,7 +170,7 @@
 ```json
 {
   "archive_id": "uuid",
-  "storage_key": "kartograf/old-map.pmtiles"
+  "storage_key": "old-map.pmtiles"
 }
 ```
 
