@@ -56,6 +56,10 @@
 
 ## Authorized Endpoints
 
+### `GET /auth/me`
+
+- Returns current authenticated user
+
 ### `GET /maps/by-id/:id/download`
 
 - Returns presigned archive download URL
