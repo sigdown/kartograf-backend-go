@@ -8,20 +8,33 @@ import (
 )
 
 type MapService struct {
-	maps        MapRepository
-	storage     ObjectStorage
-	bucket      string
-	uploadTTL   time.Duration
-	downloadTTL time.Duration
+	maps                 MapRepository
+	storage              ObjectStorage
+	bucket               string
+	uploadTTL            time.Duration
+	downloadTTL          time.Duration
+	proxyEnabled         bool
+	uploadBaseProxyURL   string
+	downloadBaseProxyURL string
 }
 
-func NewMapService(maps MapRepository, storage ObjectStorage, bucket string, uploadTTL, downloadTTL time.Duration) *MapService {
+func NewMapService(
+	maps MapRepository,
+	storage ObjectStorage,
+	bucket string,
+	uploadTTL, downloadTTL time.Duration,
+	proxyEnabled bool,
+	uploadBaseProxyURL, downloadBaseProxyURL string,
+) *MapService {
 	return &MapService{
-		maps:        maps,
-		storage:     storage,
-		bucket:      bucket,
-		uploadTTL:   uploadTTL,
-		downloadTTL: downloadTTL,
+		maps:                 maps,
+		storage:              storage,
+		bucket:               bucket,
+		uploadTTL:            uploadTTL,
+		downloadTTL:          downloadTTL,
+		proxyEnabled:         proxyEnabled,
+		uploadBaseProxyURL:   uploadBaseProxyURL,
+		downloadBaseProxyURL: downloadBaseProxyURL,
 	}
 }
 

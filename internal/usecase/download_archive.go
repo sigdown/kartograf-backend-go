@@ -17,5 +17,10 @@ func (s *MapService) DownloadURL(ctx context.Context, mapID string) (string, err
 		return "", fmt.Errorf("%w: archive is missing storage key", domain.ErrNotFound)
 	}
 
-	return s.storage.PresignDownload(ctx, archive.Bucket, archive.StorageKey, s.downloadTTL)
+	url, err := s.storage.PresignDownload(ctx, archive.Bucket, archive.StorageKey, s.downloadTTL)
+	if err != nil {
+		return "", err
+	}
+
+	return s.rewritePresignedDownloadURL(url)
 }

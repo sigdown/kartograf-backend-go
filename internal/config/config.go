@@ -26,6 +26,9 @@ type Config struct {
 		UsePathStyle       bool          `env:"S3_USE_PATH_STYLE" env-default:"true"`
 		PresignUploadTTL   time.Duration `env:"S3_PRESIGN_UPLOAD_TTL" env-default:"15m"`
 		PresignDownloadTTL time.Duration `env:"S3_PRESIGN_DOWNLOAD_TTL" env-default:"15m"`
+		ProxyEnabled       bool          `env:"S3_PROXY_ENABLED" env-default:"false"`
+		DownloadProxyURL   string        `env:"S3_DOWNLOAD_BASE_PROXY_URL"`
+		UploadProxyURL     string        `env:"S3_UPLOAD_BASE_PROXY_URL"`
 	}
 
 	Auth struct {

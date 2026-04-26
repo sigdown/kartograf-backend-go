@@ -57,7 +57,16 @@ func main() {
 	router := apphttp.NewRouter(apphttp.Services{
 		Auth:   usecase.NewAuthService(userRepo, tokenManager),
 		Points: usecase.NewPointService(pointRepo),
-		Maps:   usecase.NewMapService(mapRepo, s3Storage, cfg.S3.Bucket, cfg.S3.PresignUploadTTL, cfg.S3.PresignDownloadTTL),
+		Maps: usecase.NewMapService(
+			mapRepo,
+			s3Storage,
+			cfg.S3.Bucket,
+			cfg.S3.PresignUploadTTL,
+			cfg.S3.PresignDownloadTTL,
+			cfg.S3.ProxyEnabled,
+			cfg.S3.UploadProxyURL,
+			cfg.S3.DownloadProxyURL,
+		),
 		Tokens: tokenManager,
 	})
 

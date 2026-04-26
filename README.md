@@ -50,6 +50,9 @@ cp .env.example .env
 - `S3_USE_PATH_STYLE` — нужен ли path-style доступ
 - `S3_PRESIGN_UPLOAD_TTL` — время жизни presigned upload URL
 - `S3_PRESIGN_DOWNLOAD_TTL` — время жизни presigned download URL
+- `S3_PROXY_ENABLED` — включить выдачу presigned ссылок через proxy
+- `S3_UPLOAD_BASE_PROXY_URL` — базовый URL proxy для upload-ссылок
+- `S3_DOWNLOAD_BASE_PROXY_URL` — базовый URL proxy для download-ссылок
 - `AUTH_JWT_SECRET` — секрет для подписи JWT
 - `AUTH_ACCESS_TOKEN_TTL` — время жизни access token
 

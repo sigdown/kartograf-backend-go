@@ -37,6 +37,10 @@ func (s *MapService) StartReplaceArchiveUpload(ctx context.Context, mapID string
 	if err != nil {
 		return PresignedUploadResult{}, err
 	}
+	uploadURL, err = s.rewritePresignedUploadURL(uploadURL)
+	if err != nil {
+		return PresignedUploadResult{}, err
+	}
 
 	return PresignedUploadResult{
 		ArchiveID:        archiveID,

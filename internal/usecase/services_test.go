@@ -339,7 +339,7 @@ func TestMapServiceStartCreateUploadReturnsPresignedURL(t *testing.T) {
 		},
 	}
 
-	service := NewMapService(&fakeMapRepo{}, storage, "maps", time.Minute, 2*time.Minute)
+	service := NewMapService(&fakeMapRepo{}, storage, "maps", time.Minute, 2*time.Minute, false, "", "")
 	result, err := service.StartCreateUpload(context.Background(), CreateMapUploadInput{
 		Slug:            "old-map",
 		Title:           "Old Map",
@@ -378,7 +378,7 @@ func TestMapServiceStartCreateUploadRejectsExistingSlug(t *testing.T) {
 		},
 	}
 
-	service := NewMapService(repo, &fakeStorage{}, "maps", time.Minute, time.Minute)
+	service := NewMapService(repo, &fakeStorage{}, "maps", time.Minute, time.Minute, false, "", "")
 	_, err := service.StartCreateUpload(context.Background(), CreateMapUploadInput{
 		Slug:            "old-map",
 		Title:           "Old Map",
@@ -398,7 +398,7 @@ func TestMapServiceCreateDeletesUploadedObjectOnRepositoryFailure(t *testing.T) 
 		},
 	}
 	storage := &fakeStorage{}
-	service := NewMapService(repo, storage, "maps", time.Minute, time.Minute)
+	service := NewMapService(repo, storage, "maps", time.Minute, time.Minute, false, "", "")
 
 	_, err := service.Create(context.Background(), 1, CreateMapInput{
 		MapID:      "550e8400-e29b-41d4-a716-446655440000",
@@ -438,7 +438,7 @@ func TestMapServiceDownloadURLUsesActiveArchive(t *testing.T) {
 			return "http://example.com/download", nil
 		},
 	}
-	service := NewMapService(repo, storage, "maps", time.Minute, 2*time.Minute)
+	service := NewMapService(repo, storage, "maps", time.Minute, 2*time.Minute, false, "", "")
 
 	url, err := service.DownloadURL(context.Background(), "map-id")
 	if err != nil {
@@ -462,7 +462,7 @@ func TestMapServiceReplaceArchiveDeletesUploadedObjectOnRepositoryFailure(t *tes
 		},
 	}
 	storage := &fakeStorage{}
-	service := NewMapService(repo, storage, "maps", time.Minute, time.Minute)
+	service := NewMapService(repo, storage, "maps", time.Minute, time.Minute, false, "", "")
 
 	_, err := service.ReplaceArchive(context.Background(), 1, "550e8400-e29b-41d4-a716-446655440000", ReplaceMapArchiveInput{
 		ArchiveID:  "3d6f0a8b-1a2b-4c5d-9e7f-123456789abc",
@@ -483,7 +483,7 @@ func TestMapServiceStartReplaceArchiveUploadUsesStableSlugKey(t *testing.T) {
 		},
 	}
 	storage := &fakeStorage{}
-	service := NewMapService(repo, storage, "maps", 3*time.Minute, time.Minute)
+	service := NewMapService(repo, storage, "maps", 3*time.Minute, time.Minute, false, "", "")
 
 	result, err := service.StartReplaceArchiveUpload(context.Background(), "550e8400-e29b-41d4-a716-446655440000", ReplaceMapArchiveUploadInput{
 		ArchiveName:     "map.pmtiles",
@@ -501,5 +501,79 @@ func TestMapServiceStartReplaceArchiveUploadUsesStableSlugKey(t *testing.T) {
 	}
 	if result.ExpiresInSeconds != int64((3 * time.Minute).Seconds()) {
 		t.Fatalf("unexpected expires_in_seconds: %d", result.ExpiresInSeconds)
+	}
+}
+
+func TestMapServiceStartCreateUploadRewritesURLWhenProxyEnabled(t *testing.T) {
+	storage := &fakeStorage{
+		presignPutFn: func(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error) {
+			return "https://kartograf.s3.firstvds.ru/old-map.pmtiles?X-Amz-Signature=abc", nil
+		},
+	}
+
+	service := NewMapService(
+		&fakeMapRepo{},
+		storage,
+		"maps",
+		time.Minute,
+		time.Minute,
+		true,
+		"https://proxy.example.com/upload",
+		"https://proxy.example.com/download",
+	)
+
+	result, err := service.StartCreateUpload(context.Background(), CreateMapUploadInput{
+		Slug:            "old-map",
+		Title:           "Old Map",
+		Year:            1901,
+		ArchiveName:     "map.pmtiles",
+		ArchiveMimeType: "application/pmtiles",
+	})
+	if err != nil {
+		t.Fatalf("start create upload: %v", err)
+	}
+
+	expected := "https://proxy.example.com/upload/old-map.pmtiles?X-Amz-Signature=abc"
+	if result.UploadURL != expected {
+		t.Fatalf("unexpected rewritten upload url: %s", result.UploadURL)
+	}
+}
+
+func TestMapServiceDownloadURLRewritesURLWhenProxyEnabled(t *testing.T) {
+	repo := &fakeMapRepo{
+		getArchiveFn: func(ctx context.Context, mapID string) (domain.MapArchive, error) {
+			return domain.MapArchive{
+				ID:         "archive-id",
+				MapID:      mapID,
+				Bucket:     "maps",
+				StorageKey: "old-map.pmtiles",
+			}, nil
+		},
+	}
+	storage := &fakeStorage{
+		presignGetFn: func(ctx context.Context, bucket, objectKey string, expiry time.Duration) (string, error) {
+			return "https://kartograf.s3.firstvds.ru/old-map.pmtiles?X-Amz-Signature=xyz", nil
+		},
+	}
+
+	service := NewMapService(
+		repo,
+		storage,
+		"maps",
+		time.Minute,
+		time.Minute,
+		true,
+		"https://proxy.example.com/upload",
+		"https://proxy.example.com/download",
+	)
+
+	url, err := service.DownloadURL(context.Background(), "map-id")
+	if err != nil {
+		t.Fatalf("download url: %v", err)
+	}
+
+	expected := "https://proxy.example.com/download/old-map.pmtiles?X-Amz-Signature=xyz"
+	if url != expected {
+		t.Fatalf("unexpected rewritten download url: %s", url)
 	}
 }

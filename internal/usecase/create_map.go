@@ -69,6 +69,10 @@ func (s *MapService) StartCreateUpload(ctx context.Context, input CreateMapUploa
 	if err != nil {
 		return PresignedUploadResult{}, err
 	}
+	uploadURL, err = s.rewritePresignedUploadURL(uploadURL)
+	if err != nil {
+		return PresignedUploadResult{}, err
+	}
 
 	return PresignedUploadResult{
 		MapID:            mapID,

@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/google/uuid"
@@ -73,4 +74,27 @@ func validateStorageKey(slug, storageKey string) error {
 		return fmt.Errorf("%w: invalid storage key", domain.ErrInvalidInput)
 	}
 	return nil
+}
+
+func RewriteToRelay(rawURL string, relayBaseURL string) (string, error) {
+	direct, err := url.Parse(rawURL)
+	if err != nil {
+		return "", fmt.Errorf("parse storage url: %w", err)
+	}
+
+	relayBase, err := url.Parse(strings.TrimRight(relayBaseURL, "/") + "/")
+	if err != nil {
+		return "", fmt.Errorf("parse relay base url: %w", err)
+	}
+
+	if relayBase.Scheme == "" || relayBase.Host == "" {
+		return "", fmt.Errorf("invalid relay base url: %q", relayBaseURL)
+	}
+
+	out := *direct
+	out.Scheme = relayBase.Scheme
+	out.Host = relayBase.Host
+	out.Path = strings.TrimRight(relayBase.Path, "/") + direct.EscapedPath()
+
+	return out.String(), nil
 }
