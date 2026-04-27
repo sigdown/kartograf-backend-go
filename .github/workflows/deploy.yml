@@ -22,4 +22,4 @@ jobs:
           script: |
             set -e
             cd /srv/kartograf
-            /srv/kartograf/deploy.sh
+            /srv/kartograf/deploy.sh backend
