@@ -128,25 +128,22 @@ func (r *PostgresMapRepository) ReplaceArchive(ctx context.Context, mapID string
 	}
 	defer tx.Rollback(ctx)
 
-	tag, err := tx.Exec(ctx, `update map_archive set status = $2, updated_at = now() where map_id = $1 and status = $3`, mapID, domain.ArchiveStatusReplaced, domain.ArchiveStatusActive)
+	tag, err := tx.Exec(ctx, `
+		update map_archive
+		set bucket = $3,
+		    storage_key = $4,
+		    uploaded_by = $5,
+		    size_bytes = $6,
+		    checksum = nullif($7, ''),
+		    status = $8,
+		    updated_at = now()
+		where map_id = $1 and archive_id = $2
+	`, mapID, archive.ID, archive.Bucket, archive.StorageKey, archive.UploadedBy, archive.SizeBytes, archive.Checksum, domain.ArchiveStatusActive)
 	if err != nil {
 		return domain.MapArchive{}, mapError(err, "map archive")
 	}
 	if tag.RowsAffected() == 0 {
-		checkTag, checkErr := tx.Exec(ctx, `update map set updated_at = updated_at where uuid = $1`, mapID)
-		if checkErr != nil {
-			return domain.MapArchive{}, checkErr
-		}
-		if checkTag.RowsAffected() == 0 {
-			return domain.MapArchive{}, fmt.Errorf("%w: map not found", domain.ErrNotFound)
-		}
-	}
-
-	if _, err := tx.Exec(ctx, `
-		insert into map_archive (archive_id, map_id, bucket, storage_key, uploaded_by, size_bytes, checksum, status)
-		values ($1, $2, $3, $4, $5, $6, nullif($7, ''), $8)
-	`, archive.ID, archive.MapID, archive.Bucket, archive.StorageKey, archive.UploadedBy, archive.SizeBytes, archive.Checksum, archive.Status); err != nil {
-		return domain.MapArchive{}, mapError(err, "map archive")
+		return domain.MapArchive{}, fmt.Errorf("%w: archive not found", domain.ErrNotFound)
 	}
 
 	tag, err = tx.Exec(ctx, `

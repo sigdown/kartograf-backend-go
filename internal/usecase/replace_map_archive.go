@@ -31,7 +31,11 @@ func (s *MapService) StartReplaceArchiveUpload(ctx context.Context, mapID string
 		return PresignedUploadResult{}, err
 	}
 
-	archiveID := newUUID()
+	if m.CurrentArchiveID == "" {
+		return PresignedUploadResult{}, domain.ErrNotFound
+	}
+
+	archiveID := m.CurrentArchiveID
 	objectKey := buildObjectKey(m.Slug)
 	uploadURL, err := s.storage.PresignUpload(ctx, s.bucket, objectKey, s.uploadTTL)
 	if err != nil {
@@ -61,10 +65,16 @@ func (s *MapService) ReplaceArchive(ctx context.Context, actorID int64, mapID st
 	if err != nil {
 		return domain.MapArchive{}, err
 	}
+	if m.CurrentArchiveID == "" {
+		return domain.MapArchive{}, domain.ErrNotFound
+	}
 
 	archiveID, err := parseUUIDValue(input.ArchiveID, "archive_id")
 	if err != nil {
 		return domain.MapArchive{}, err
+	}
+	if archiveID != m.CurrentArchiveID {
+		return domain.MapArchive{}, domain.ErrInvalidInput
 	}
 
 	if err := validateStorageKey(m.Slug, input.StorageKey); err != nil {

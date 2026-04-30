@@ -479,7 +479,7 @@ func TestMapServiceReplaceArchiveDeletesUploadedObjectOnRepositoryFailure(t *tes
 func TestMapServiceStartReplaceArchiveUploadUsesStableSlugKey(t *testing.T) {
 	repo := &fakeMapRepo{
 		getByIDFn: func(ctx context.Context, mapID string) (domain.Map, error) {
-			return domain.Map{ID: mapID, Slug: "old-map"}, nil
+			return domain.Map{ID: mapID, Slug: "old-map", CurrentArchiveID: "3d6f0a8b-1a2b-4c5d-9e7f-123456789abc"}, nil
 		},
 	}
 	storage := &fakeStorage{}
@@ -495,6 +495,9 @@ func TestMapServiceStartReplaceArchiveUploadUsesStableSlugKey(t *testing.T) {
 
 	if result.StorageKey != "old-map.pmtiles" {
 		t.Fatalf("unexpected storage key: %s", result.StorageKey)
+	}
+	if result.ArchiveID != "3d6f0a8b-1a2b-4c5d-9e7f-123456789abc" {
+		t.Fatalf("unexpected archive id: %s", result.ArchiveID)
 	}
 	if storage.uploadExpiry != 3*time.Minute {
 		t.Fatalf("unexpected upload ttl: %s", storage.uploadExpiry)
